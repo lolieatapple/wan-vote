@@ -4,6 +4,7 @@ import Web3 from 'web3';
 var MongoClient = require('mongodb').MongoClient;
 var url = process.env.MONGO_URL;
 var openStoremanAddress = '0x1e7450d5d17338a348c5438546f0b4d0a5fbeab6';
+var posAddress = '0x00000000000000000000000000000000000000da';
 
 const multicallAbi = require('./abi/multicall.abi.json');
 const BigNumber = require('bignumber.js');
@@ -50,6 +51,10 @@ async function main(req) {
 
   total = total.plus(await getStoremanDelegateIn(apiClient, addr, block));
 
+  total = total.plus(await getPosStakeIn(apiClient, addr, block));
+
+  total = total.plus(await getPosDelegateIn(apiClient, addr, block));
+
   console.log('total:', total.div(1e18).toString());
 
   // await db.collection('cache').insertOne({addr, block, balance, time: Date.now()});
@@ -81,6 +86,7 @@ async function getStoremanStakeIn(apiClient, addr, block) {
   let stmStakeAppend = await apiClient.getScEvent('WAN', openStoremanAddress, stakeAppendEvent, { toBlockoptional: block });
   console.log('getStoremanStakeIn stmStakeAppend', stmStakeClaim.length);
 
+  // console.log('stmStakeIn', stmStakeIn);
   if (stmStakeIn.length > 0) {
     for (let i=0; i<stmStakeIn.length; i++) {
       total = total.plus(stmStakeIn[i].data);
@@ -99,7 +105,7 @@ async function getStoremanStakeIn(apiClient, addr, block) {
     }
   }
   //------------------------------------------------------
-  console.log('stake in', total.div(1e18).toString());
+  console.log('storeman stake in', total.div(1e18).toString());
 
   return total;
 }
@@ -132,7 +138,7 @@ async function getStoremanPartnerIn(apiClient, addr, block) {
     }
   }
   //------------------------------------------------------
-  console.log('partner in', total.div(1e18).toString());
+  console.log('storeman partner in', total.div(1e18).toString());
   return total;
 }
 
@@ -164,10 +170,83 @@ async function getStoremanDelegateIn(apiClient, addr, block) {
     }
   }
   //------------------------------------------------------
-  console.log('delegate in', total.div(1e18).toString());
+  console.log('storeman delegate in', total.div(1e18).toString());
   return total;
 }
 
+async function getPosStakeIn(apiClient, addr, block) {
+  let total = new BigNumber(0);
+
+  // Add Storeman Stake In amount------------------------
+  const posStakeInEvent = ['0xa725dfab679dc0cd174a33f7ca0a87098551cd0ee04d6bedfb38a7557221ac83', '0x' + addr.slice(2).padStart(64, '0'), null, null];
+
+  const stakeAppendEvent = ['0x356a79bfbd012a4e7d32eefc5c02fb534d797889b815194ed4257e8a63d3e223', '0x' + addr.slice(2).padStart(64, '0'), null, null];
+
+  const posStakeUpdateEvent = ['0x9c64b8e2685ca3085d4bfa8d3079d80ed601bd3aad323db5bf6c6a01afec2418', '0x' + addr.slice(2).padStart(64, '0'), null];
+
+  let posStakeIn = await apiClient.getScEvent('WAN', posAddress, posStakeInEvent, { toBlockoptional: block });
+  console.log('getPosStakeIn posStakeIn', posStakeIn.length);
+
+  let posStakeUpdate = await apiClient.getScEvent('WAN', posAddress, posStakeUpdateEvent, { toBlockoptional: block });
+  console.log('getPosStakeIn posStakeUpdate', posStakeUpdate.length);
+
+  let posStakeAppend = await apiClient.getScEvent('WAN', posAddress, stakeAppendEvent, { toBlockoptional: block });
+  console.log('getPosStakeIn stakeAppendEvent', posStakeAppend.length);
+
+  if (posStakeIn.length > 0) {
+    for (let i=0; i<posStakeIn.length; i++) {
+      total = total.plus(posStakeIn[i].topics[3]);
+    }
+  }
+
+  if (posStakeAppend.length > 0) {
+    for (let i=0; i<posStakeAppend.length; i++) {
+      total = total.plus(posStakeAppend[i].topics[3]);
+    }
+  }
+
+  if (posStakeUpdate.length > 0 && (Number(posStakeUpdate[posStakeUpdate.length - 1].topics[3]).toString() === '0')) {
+    total = new BigNumber(0);
+  }
+  //------------------------------------------------------
+  console.log('pos stake in', total.div(1e18).toString());
+
+  return total;
+}
+
+async function getPosDelegateIn(apiClient, addr, block) {
+  let total = new BigNumber(0);
+
+  // Add Storeman Stake In amount------------------------
+  const posDelegateInEvent = ['0x415d10a111ef0522e5fedeec53cfc4eece3854ba6e1efdf147d5c5f6e624c1a2', '0x' + addr.slice(2).padStart(64, '0'), null, null];
+
+  const posDelegateOutEvent = ['0xc56651e869741bd9650fdd984421326186e27584c2db5f5c08925631f320a39d', '0x' + addr.slice(2).padStart(64, '0'), null];
+
+  let posDelegateIn = await apiClient.getScEvent('WAN', posAddress, posDelegateInEvent, { toBlockoptional: block });
+  console.log('getPosStakeIn posDelegateIn', posDelegateIn.length);
+
+  let posDelegateOut = await apiClient.getScEvent('WAN', posAddress, posDelegateOutEvent, { toBlockoptional: block });
+  console.log('getPosStakeIn posDelegateOut', posDelegateOut.length);
+
+  if (posDelegateIn.length > 0) {
+    for (let i=0; i<posDelegateIn.length; i++) {
+      total = total.plus(posDelegateIn[i].topics[3]);
+    }
+  }
+
+  if (posDelegateOut.length > 0) {
+    for (let i=0; i<posDelegateIn.length; i++) {
+      if (posDelegateOut[posDelegateOut.length - 1].blockNumber > posDelegateIn[i].blockNumber) {
+        total = total.minus(posDelegateIn[i].topics[3]);
+      }
+    }
+  }
+
+  //------------------------------------------------------
+  console.log('pos delegate in', total.div(1e18).toString());
+
+  return total;
+}
 
 // Initializing the cors middleware
 const cors = Cors({
