@@ -36,10 +36,10 @@ async function main(req) {
   // let balance = await apiClient.getBalance('WAN', '0x5560aF0F46D00FCeA88627a9DF7A4798b1b10961');
 
   await db.collection('cache').insertOne({addr, block, balance, time: Date.now()});
-  
+
   apiClient.close();
   connection.close();
-  return { balance };
+  return { success: true, data: { addr, block, balance, time: Date.now()} };
 }
 
 // Initializing the cors middleware
