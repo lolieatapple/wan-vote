@@ -20,16 +20,23 @@ async function main(req) {
 
   console.log('query addr:', addr, 'block:', block);
 
-  // let connection = await MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true });
-  // let db = connection.db("wanVote");
+  let connection;
+  let db;
 
-  // let ret = await db.collection('cache').find({addr, block}).toArray();
-
-  // console.log('db ret', ret);
-
-  // if (ret && ret.length > 0) {
-  //   return {success: true, data: ret[0]};
-  // }
+  try {
+    connection = await MongoClient.connect(url, { useNewUrlParser: true, useUnifiedTopology: true });
+    db = connection.db("wanVote");
+  
+    let ret = await db.collection('cache').find({addr, block}).toArray();
+  
+    console.log('db ret', ret);
+  
+    if (ret && ret.length > 0) {
+      return {success: true, data: ret[0]};
+    }
+  } catch (error) {
+    console.error('connect db error:', error);
+  }
 
   let total = new BigNumber(0);
 
@@ -57,10 +64,17 @@ async function main(req) {
 
   console.log('total:', total.div(1e18).toString());
 
-  // await db.collection('cache').insertOne({addr, block, balance, time: Date.now()});
+  if (db) {
+    await db.collection('cache').insertOne({addr, block, balance: total.div(1e18).toString(), time: Date.now()});
+  }
+
 
   apiClient.close();
-  // connection.close();
+
+  if (connection) {
+    connection.close();
+  }
+
   return { success: true, data: { addr, block, balance: total.div(1e18).toString(), time: Date.now() } };
 }
 
