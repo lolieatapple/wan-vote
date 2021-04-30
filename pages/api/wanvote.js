@@ -20,6 +20,12 @@ async function main(req) {
 
   console.log('query addr:', addr, 'block:', block);
 
+  let web3 = new Web3(new Web3.providers.HttpProvider(process.env.RPC_URL));
+
+  if (block === 'latest') {
+    block = await web3.eth.getBlockNumber();
+  }
+
   let connection;
   let db;
 
@@ -41,7 +47,6 @@ async function main(req) {
   let total = new BigNumber(0);
 
 
-  let web3 = new Web3(new Web3.providers.HttpProvider(process.env.RPC_URL));
   let multicallSc = new web3.eth.Contract(multicallAbi, process.env.MULTICALL_ADDR)
 
   let balance = await multicallSc.methods.getEthBalance(addr).call(undefined, block);
